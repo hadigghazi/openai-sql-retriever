@@ -2,75 +2,247 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>OpenAI SQL Retriever</title>
+  <meta name="color-scheme" content="light dark" />
   <style>
-    body { font-family: system-ui, Arial, sans-serif; max-width: 720px; margin: 40px auto; }
-    input, button, textarea { font-size: 1rem; padding: 8px; }
-    table { border-collapse: collapse; margin-top: 16px; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    th { background: #f3f3f3; }
-    pre { background: #f7f7f7; padding: 8px; }
+    :root {
+      --bg: #f7f7fb;
+      --text: #111827;
+      --muted: #6b7280;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --accent: #4f46e5;
+      --accent-strong: #4338ca;
+      --code-bg: #0b1020;
+      --code-text: #e5e7eb;
+      --row-alt: #fafafa;
+      --ok: #16a34a;
+      --err: #dc2626;
+      --shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+    }
+    .dark {
+      --bg: #0b1020;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --card: #0f172a;
+      --border: #1f2937;
+      --accent: #7c3aed;
+      --accent-strong: #6d28d9;
+      --code-bg: #0a0f1e;
+      --code-text: #e5e7eb;
+      --row-alt: #0c1226;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .container { max-width: 960px; margin: 48px auto; padding: 0 16px; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.2px;
+    }
+    .brand .logo { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: #fff; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+    .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .input-row input[type="text"] {
+      flex: 1 1 460px; min-width: 240px; border: 1px solid var(--border); background: transparent;
+      color: var(--text); border-radius: 12px; padding: 12px 14px; outline: none; transition: border .15s ease;
+    }
+    .input-row input[type="text"]:focus { border-color: var(--accent); }
+    .btn {
+      appearance: none; border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 600; cursor: pointer;
+      background: var(--accent); color: #fff; transition: transform .02s ease, background .15s ease, opacity .15s ease;
+    }
+    .btn:hover { background: var(--accent-strong); }
+    .btn:active { transform: translateY(1px); }
+    .btn[disabled] { opacity: .6; cursor: not-allowed; }
+    .ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+    .chip {
+      border: 1px solid var(--border); color: var(--muted); background: transparent;
+      border-radius: 999px; padding: 6px 10px; cursor: pointer; font-size: 13px;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .section { margin-top: 22px; }
+    .section h3 { margin: 0 0 10px; font-size: 16px; }
+    .code {
+      position: relative; background: var(--code-bg); color: var(--code-text);
+      border-radius: 12px; padding: 14px; overflow: auto; border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 14px;
+    }
+    .copy {
+      position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.08);
+      color: var(--code-text); border: 1px solid rgba(255,255,255,.15);
+      padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 12px;
+    }
+    .copy:hover { background: rgba(255,255,255,.15); }
+    .tablewrap { border: 1px solid var(--border); border-radius: 12px; overflow: auto; max-height: 420px; }
+    table { border-collapse: collapse; width: 100%; min-width: 520px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+    tbody tr:nth-child(even) { background: var(--row-alt); }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+    .dot { width: 8px; height: 8px; border-radius: 100%; background: var(--muted); }
+    .dot.ok { background: var(--ok); }
+    .dot.err { background: var(--err); }
+    .footer { margin: 24px 0 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+    .switch {
+      border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer;
+      background: transparent; color: var(--text); font-size: 13px;
+    }
+    @media (max-width: 520px) {
+      .topbar { flex-direction: column; align-items: flex-start; gap: 6px; }
+      .footer { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
   </style>
 </head>
 <body>
-  <h1>OpenAI SQL Retriever</h1>
-  <p>Ask about the STUDENT table (NAME, CLASS, SECTION, MARKS):</p>
-  <form id="qform">
-    <input id="question" placeholder='e.g., "How many records exist?"' style="width:100%" />
-    <button type="submit">Ask</button>
-  </form>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">SQL</div>
+        <div>
+          <div>OpenAI SQL Retriever</div>
+          <div class="muted">Ask in English → get SQLite + results</div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button id="theme" class="switch" type="button" title="Toggle theme">Toggle theme</button>
+        <a class="switch" href="https://github.com/hadigghazi/openai-sql-retriever" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </div>
 
-  <h3>Generated SQL</h3>
-  <pre id="sql"></pre>
+    <div class="card">
+      <div class="input-row">
+        <input id="q" type="text" placeholder='e.g., "How many records exist?"' aria-label="Question" />
+        <button id="ask" class="btn" type="button">Ask</button>
+      </div>
+      <div class="chips" id="samples">
+        <!-- Sample questions (click to auto-fill) -->
+      </div>
 
-  <h3>Result</h3>
-  <div id="result"></div>
+      <div class="section">
+        <h3>Generated SQL</h3>
+        <div class="code" id="sqlbox" hidden>
+          <button class="copy" id="copy" type="button">Copy</button>
+          <pre id="sql" style="margin:0; white-space:pre-wrap;"></pre>
+        </div>
+        <div class="muted" id="sqlhint">Your SQL will appear here.</div>
+      </div>
+
+      <div class="section">
+        <h3>Result</h3>
+        <div class="tablewrap" id="resultwrap" hidden>
+          <table id="result"></table>
+        </div>
+        <div class="muted" id="resulthint">Run a query to see rows.</div>
+      </div>
+
+      <div class="section">
+        <div class="status" id="status">
+          <span class="dot"></span>
+          <span class="muted">Idle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Backend: <code>/api/query</code> • In-memory SQLite seeded on each request</div>
+      <div>Built for Vercel serverless • No external CSS/JS</div>
+    </div>
+  </div>
 
   <script>
-    const form = document.getElementById('qform');
-    const qEl  = document.getElementById('question');
-    const sqlEl = document.getElementById('sql');
-    const resultEl = document.getElementById('result');
+    // --- Theme toggle (persists) ---
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const saved = localStorage.getItem('theme');
+    const isDark = saved ? (saved === 'dark') : prefersDark;
+    if (isDark) document.documentElement.classList.add('dark');
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      sqlEl.textContent = '...';
-      resultEl.innerHTML = '...';
+    document.getElementById('theme').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    });
 
-      const res = await fetch('/api/query', {
-        method: 'POST',
-        headers: {'content-type':'application/json'},
-        body: JSON.stringify({ question: qEl.value })
-      });
-      const data = await res.json();
+    // --- UI refs ---
+    const qEl = document.getElementById('q');
+    const askBtn = document.getElementById('ask');
+    const sqlBox = document.getElementById('sqlbox');
+    const sqlPre = document.getElementById('sql');
+    const sqlHint = document.getElementById('sqlhint');
+    const copyBtn = document.getElementById('copy');
+    const resultWrap = document.getElementById('resultwrap');
+    const resultTable = document.getElementById('result');
+    const resultHint = document.getElementById('resulthint');
+    const statusEl = document.getElementById('status');
+    const dot = statusEl.querySelector('.dot');
+    const statusText = statusEl.querySelector('span.muted');
 
-      if (data.error) {
-        sqlEl.textContent = '';
-        resultEl.textContent = 'Error: ' + data.error;
+    // --- Sample questions ---
+    const samples = [
+      'How many records exist?',
+      'Show all students in class "10".',
+      'List students with marks >= 90.',
+      'Average marks per class.',
+      'Top 5 students by marks.',
+      'Students in class "11" and section "A".',
+      'Distinct classes.',
+      'Students with no marks recorded.'
+    ];
+    const chipsEl = document.getElementById('samples');
+    samples.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.type = 'button';
+      b.textContent = s;
+      b.addEventListener('click', () => { qEl.value = s; qEl.focus(); });
+      chipsEl.appendChild(b);
+    });
+
+    function setBusy(busy) {
+      askBtn.disabled = busy;
+      askBtn.textContent = busy ? 'Thinking…' : 'Ask';
+      dot.className = 'dot' + (busy ? '' : '');
+      statusText.textContent = busy ? 'Generating SQL & running query…' : 'Idle';
+    }
+
+    function showSQL(sql) {
+      sqlPre.textContent = sql || '';
+      sqlBox.hidden = !sql;
+      sqlHint.hidden = !!sql;
+    }
+
+    function showTable(columns, rows) {
+      resultTable.innerHTML = '';
+      if (!rows || !rows.length) {
+        resultWrap.hidden = true;
+        resultHint.textContent = 'No rows.';
+        resultHint.hidden = false;
         return;
       }
-
-      sqlEl.textContent = data.sql || '';
-
-      if (!data.rows || !data.rows.length) {
-        resultEl.textContent = 'No rows.';
-        return;
-      }
-
-      const table = document.createElement('table');
       const thead = document.createElement('thead');
       const trh = document.createElement('tr');
-      (data.columns || []).forEach(c => {
+      (columns || []).forEach(c => {
         const th = document.createElement('th');
         th.textContent = c;
         trh.appendChild(th);
       });
       thead.appendChild(trh);
-      table.appendChild(thead);
-
       const tbody = document.createElement('tbody');
-      data.rows.forEach(r => {
+      rows.forEach(r => {
         const tr = document.createElement('tr');
         r.forEach(v => {
           const td = document.createElement('td');
@@ -79,10 +251,57 @@
         });
         tbody.appendChild(tr);
       });
-      table.appendChild(tbody);
+      resultTable.appendChild(thead);
+      resultTable.appendChild(tbody);
+      resultWrap.hidden = false;
+      resultHint.hidden = true;
+    }
 
-      resultEl.innerHTML = '';
-      resultEl.appendChild(table);
+    async function run() {
+      const question = qEl.value.trim();
+      if (!question) { qEl.focus(); return; }
+      setBusy(true);
+      showSQL('');
+      showTable([], []);
+      resultHint.textContent = 'Running…';
+      try {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+
+        showSQL(data.sql || '');
+        showTable(data.columns || [], data.rows || []);
+        dot.classList.add('ok');
+        statusText.textContent = 'Done';
+      } catch (e) {
+        dot.classList.add('err');
+        statusText.textContent = 'Error';
+        showSQL('');
+        resultWrap.hidden = true;
+        resultHint.hidden = false;
+        resultHint.textContent = 'Error: ' + (e.message || e);
+        console.error(e);
+      } finally {
+        setBusy(false);
+        setTimeout(() => { dot.classList.remove('ok', 'err'); statusText.textContent = 'Idle'; }, 1400);
+      }
+    }
+
+    askBtn.addEventListener('click', run);
+    qEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); run(); }
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sqlPre.textContent);
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => copyBtn.textContent = 'Copy', 1200);
+      } catch { /* ignore */ }
     });
   </script>
 </body>
