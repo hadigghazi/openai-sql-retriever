@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenAI SQL Retriever</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; max-width: 720px; margin: 40px auto; }
+    input, button, textarea { font-size: 1rem; padding: 8px; }
+    table { border-collapse: collapse; margin-top: 16px; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f3f3f3; }
+    pre { background: #f7f7f7; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>OpenAI SQL Retriever</h1>
+  <p>Ask about the STUDENT table (NAME, CLASS, SECTION, MARKS):</p>
+  <form id="qform">
+    <input id="question" placeholder='e.g., "How many records exist?"' style="width:100%" />
+    <button type="submit">Ask</button>
+  </form>
+
+  <h3>Generated SQL</h3>
+  <pre id="sql"></pre>
+
+  <h3>Result</h3>
+  <div id="result"></div>
+
+  <script>
+    const form = document.getElementById('qform');
+    const qEl  = document.getElementById('question');
+    const sqlEl = document.getElementById('sql');
+    const resultEl = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      sqlEl.textContent = '...';
+      resultEl.innerHTML = '...';
+
+      const res = await fetch('/api/query', {
+        method: 'POST',
+        headers: {'content-type':'application/json'},
+        body: JSON.stringify({ question: qEl.value })
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        sqlEl.textContent = '';
+        resultEl.textContent = 'Error: ' + data.error;
+        return;
+      }
+
+      sqlEl.textContent = data.sql || '';
+
+      if (!data.rows || !data.rows.length) {
+        resultEl.textContent = 'No rows.';
+        return;
+      }
+
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      (data.columns || []).forEach(c => {
+        const th = document.createElement('th');
+        th.textContent = c;
+        trh.appendChild(th);
+      });
+      thead.appendChild(trh);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      data.rows.forEach(r => {
+        const tr = document.createElement('tr');
+        r.forEach(v => {
+          const td = document.createElement('td');
+          td.textContent = v;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      resultEl.innerHTML = '';
+      resultEl.appendChild(table);
+    });
+  </script>
+</body>
+</html>
